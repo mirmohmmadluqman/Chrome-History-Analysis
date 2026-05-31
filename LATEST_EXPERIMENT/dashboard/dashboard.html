@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChronosAnalytics - Intelligence Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="dashboard.css">
   <script src="../lib/chart.umd.js"></script>
 </head>
@@ -124,7 +127,7 @@
 
         <!-- TRACKER TAB -->
         <section id="tab-tracker" class="tab-pane">
-           <!-- Visualization Canvas (Sticky) -->
+           <!-- New Visualization Canvas (Sticky) -->
            <div class="visualization-canvas">
              <div class="charts-grid-2">
                <div class="chart-container">
@@ -145,18 +148,18 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
               <div>
                 <h2>Detailed Web Time Tracker</h2>
-                <p class="subtitle" style="margin-bottom: 0;">Breakdown of active browsing time. You can edit the duration.</p>
+                <p class="subtitle" style="margin-bottom: 0;">Breakdown of active browsing time.</p>
               </div>
               <div style="display: flex; gap: 16px; align-items: center;">
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
                   <input type="checkbox" id="hide-low-usage" style="width: 16px; height: 16px;">
-                  Hide &lt; 5m
+                  Hide < 5m
                 </label>
                 <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-muted); cursor: pointer;">
                   <input type="checkbox" id="compare-all-time" style="width: 16px; height: 16px;">
                   Compare All-Time
                 </label>
-                <select id="tracker-time-filter" style="padding: 8px 12px; border-radius: 8px; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); font-family: inherit; outline: none; cursor: pointer;">
+                <select id="tracker-time-filter" style="padding: 8px 12px; border-radius: 8px; background: var(--glass-bg); color: var(--text-main); border: 1px solid var(--glass-border); font-family: inherit; outline: none; cursor: pointer;">
                   <option value="today">Today</option>
                   <option value="yesterday">Yesterday</option>
                   <option value="this_week">This Week</option>
@@ -165,13 +168,13 @@
                 </select>
               </div>
             </div>
-            <div class="table-container" style="max-height: 500px; overflow-y: auto; border: 1px solid var(--border); border-radius: 12px;">
+            <div class="table-container" style="max-height: 500px; overflow-y: auto; border: 1px solid var(--glass-border); border-radius: 12px;">
               <table style="width: 100%; text-align: left; border-collapse: collapse;">
-                <thead style="background: var(--bg-panel); position: sticky; top: 0; z-index: 1;">
+                <thead style="background: var(--bg-panel); position: sticky; top: 0; z-index: 1; backdrop-filter: blur(10px);">
                   <tr>
                      <th>Host Domain</th>
                      <th>Category</th>
-                     <th>Tracked Time (Edit)</th>
+                     <th>Tracked Time</th>
                      <th>Visit Count</th>
                   </tr>
                 </thead>
@@ -228,6 +231,7 @@
     </main>
   </div>
 
+  <!-- Note: Chart.js will be loaded by module scripts -->
   <script type="module" src="dashboard.js"></script>
 </body>
 </html>

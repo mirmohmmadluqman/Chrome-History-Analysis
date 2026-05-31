@@ -6,7 +6,7 @@ export const CATEGORIES = {
   SOCIAL: 'Social Media & Communication',
   RESEARCH: 'Search & Research',
   LEARNING: 'Learning',
-  WEB3: 'Web3 & Security',
+  SPECIALIZED: 'Specialized Domain',
   OTHER: 'Other Web Browsing'
 };
 
@@ -18,7 +18,7 @@ export const DEFAULT_GOALS = {
   [CATEGORIES.LEARNING]: 10,
   [CATEGORIES.ENTERTAINMENT]: 10,
   [CATEGORIES.SOCIAL]: 5,
-  [CATEGORIES.WEB3]: 0,
+  [CATEGORIES.SPECIALIZED]: 0,
   [CATEGORIES.OTHER]: 0
 };
 
@@ -30,7 +30,7 @@ export const CATEGORY_COLORS = {
   [CATEGORIES.SOCIAL]: '#f59e0b', // Amber
   [CATEGORIES.RESEARCH]: '#0ea5e9', // Sky
   [CATEGORIES.LEARNING]: '#14b8a6', // Teal
-  [CATEGORIES.WEB3]: '#f97316', // Orange
+  [CATEGORIES.SPECIALIZED]: '#f97316', // Orange
   [CATEGORIES.OTHER]: '#64748b' // Slate
 };
 
@@ -38,6 +38,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'dark',
   idleTimeout: 60, // seconds until idle
   goals: DEFAULT_GOALS,
+  categoryNames: { ...CATEGORIES }, // Initial mapping
   customRules: {}, // Domain -> Category overrides
   geminiApiKey: '',
   userProfile: ''

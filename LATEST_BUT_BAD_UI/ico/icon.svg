@@ -1,0 +1,90 @@
+```svg id="chronosanalytics-clean"
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Glow -->
+    <radialGradient id="bgGlow" cx="50%" cy="50%" r="60%">
+      <stop offset="0%" stop-color="#0A84FF" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#000814" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Main Circle -->
+    <linearGradient id="circleGrad" x1="180" y1="180" x2="850" y2="850">
+      <stop offset="0%" stop-color="#003B99"/>
+      <stop offset="100%" stop-color="#000814"/>
+    </linearGradient>
+
+    <!-- Bars -->
+    <linearGradient id="bar1" x1="0" y1="760" x2="0" y2="560">
+      <stop offset="0%" stop-color="#0A84FF"/>
+      <stop offset="100%" stop-color="#4FD1FF"/>
+    </linearGradient>
+
+    <linearGradient id="bar2" x1="0" y1="760" x2="0" y2="470">
+      <stop offset="0%" stop-color="#006DFF"/>
+      <stop offset="100%" stop-color="#53C8FF"/>
+    </linearGradient>
+
+    <linearGradient id="bar3" x1="0" y1="760" x2="0" y2="360">
+      <stop offset="0%" stop-color="#00B4D8"/>
+      <stop offset="100%" stop-color="#52F1FF"/>
+    </linearGradient>
+
+    <!-- Glow -->
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="25" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Shadow -->
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1024" height="1024" fill="#090F1D"/>
+  <circle cx="512" cy="512" r="360" fill="url(#bgGlow)" filter="url(#glow)"/>
+
+  <!-- Main Circular Body -->
+  <circle cx="512" cy="512" r="292" fill="url(#circleGrad)" filter="url(#shadow)"/>
+
+  <!-- Clock Arc -->
+  <path
+    d="M305 305
+       A292 292 0 1 0 719 719"
+    stroke="white"
+    stroke-opacity="0.95"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+
+  <!-- Clock Marks -->
+  <rect x="500" y="210" width="24" height="56" rx="12" fill="white"/>
+  <rect x="500" y="758" width="24" height="56" rx="12" fill="white"/>
+  <rect x="218" y="500" width="56" height="24" rx="12" fill="white"/>
+
+  <!-- Clock Hands -->
+  <line x1="512" y1="512" x2="660" y2="365"
+        stroke="#1CA8FF"
+        stroke-width="28"
+        stroke-linecap="round"/>
+
+  <line x1="512" y1="512" x2="390" y2="410"
+        stroke="#22B8FF"
+        stroke-width="28"
+        stroke-linecap="round"/>
+
+  <circle cx="512" cy="512" r="30" fill="#169FFF"/>
+
+  <!-- Analytics Bars -->
+  <rect x="340" y="620" width="78" height="120" rx="10" fill="url(#bar1)"/>
+  <rect x="470" y="520" width="78" height="220" rx="10" fill="url(#bar2)"/>
+  <rect x="600" y="390" width="78" height="350" rx="10" fill="url(#bar3)"/>
+
+  <!-- Smooth Analytics Trend Line -->
+
+</svg>
+```

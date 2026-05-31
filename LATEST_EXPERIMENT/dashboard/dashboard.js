@@ -8,11 +8,11 @@ document.querySelectorAll('.nav-item').forEach(button => {
     // Nav logic
     document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
     button.classList.add('active');
-
+    
     // Tab logic
     document.querySelectorAll('.tab-pane').forEach(t => t.classList.remove('active'));
     document.getElementById(`tab-${button.dataset.tab}`).classList.add('active');
-
+    
     // Update header Title
     document.getElementById('page-title').textContent = button.textContent.trim();
   });
@@ -31,7 +31,7 @@ export async function refreshDashboard() {
   populateGoalsEditor();
   initAISettings();
   refreshTrackerTable();
-
+  
   // Auto-sync history in background if it hasn't been done yet
   if (!currentUserSettings.hasSyncedHistory) {
     autoSyncHistory();
@@ -68,22 +68,17 @@ function updateKPIs(analytics) {
   document.getElementById('kpi-distraction').textContent = `${analytics.distractionRatio}%`;
 }
 
-// Chart palette — uses the current theme's accent colors (no pink/indigo hardcoded)
-const CHART_COLORS = [
-  '#555555', '#888888', '#333333', '#aaaaaa', '#666666',
-  '#444444', '#999999', '#777777', '#bbbbbb', '#222222'
-];
-
-// Dark-mode-aware color for text
-function getChartTextColor() {
-  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? '#a3a3a3'
-    : '#888888';
+function getGradient(ctx, color1, color2) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, color1);
+  gradient.addColorStop(1, color2);
+  return gradient;
 }
 
 function renderCharts(analytics) {
-  Chart.defaults.color = getChartTextColor();
-  Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
+  Chart.defaults.font.family = "'Inter', sans-serif";
   Chart.defaults.font.size = 12;
 
   renderCategoryChart(analytics);
@@ -95,11 +90,31 @@ function renderCharts(analytics) {
 function renderCategoryChart(analytics) {
   const canvas = document.getElementById('category-chart');
   const ctx = canvas.getContext('2d');
-
+  
   if (charts['category']) charts['category'].destroy();
+  
+  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames[id] || id);
+  const data = Object.keys(CATEGORIES).map(id => (analytics.categoryTime[CATEGORIES[id]] || 0) / 3600000); // in hours
+  
+  // Use vibrant gradients for bars
+  const colors = [
+    ['#6366f1', '#a855f7'], // Indigo -> Purple
+    ['#ec4899', '#f43f5e'], // Pink -> Rose
+    ['#10b981', '#3b82f6'], // Emerald -> Blue
+    ['#f59e0b', '#ef4444'], // Amber -> Red
+    ['#06b6d4', '#3b82f6'], // Cyan -> Blue
+    ['#8b5cf6', '#d946ef'], // Violet -> Fuchsia
+    ['#f97316', '#facc15'], // Orange -> Yellow
+    ['#14b8a6', '#059669'], // Teal -> Green
+    ['#64748b', '#475569']  // Slate
+  ];
 
-  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames?.[id] || id);
-  const data = Object.keys(CATEGORIES).map(id => (analytics.categoryTime[CATEGORIES[id]] || 0) / 3600000);
+  const barGradients = colors.map(pair => {
+    const g = ctx.createLinearGradient(0, 0, 0, 300);
+    g.addColorStop(0, pair[0]);
+    g.addColorStop(1, pair[1] || pair[0]);
+    return g;
+  });
 
   charts['category'] = new Chart(ctx, {
     type: 'bar',
@@ -108,22 +123,27 @@ function renderCategoryChart(analytics) {
       datasets: [{
         label: 'Hours Active',
         data: data,
-        backgroundColor: CHART_COLORS,
-        borderRadius: 4,
+        backgroundColor: barGradients,
+        borderRadius: 8,
         borderWidth: 0,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
+      plugins: { 
         legend: { display: false },
-        tooltip: { padding: 10, cornerRadius: 6 }
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: 'bold' }
+        }
       },
       scales: {
-        y: {
-          beginAtZero: true,
-          grid: { color: 'rgba(128,128,128,0.1)', drawBorder: false },
+        y: { 
+          beginAtZero: true, 
+          grid: { color: 'rgba(226, 232, 240, 0.1)', drawBorder: false },
           ticks: { callback: value => value + 'h' }
         },
         x: { grid: { display: false } }
@@ -135,12 +155,14 @@ function renderCategoryChart(analytics) {
 function renderTopDomainsChart(analytics) {
   const canvas = document.getElementById('top-domains-chart');
   const ctx = canvas.getContext('2d');
-
+  
   if (charts['domains']) charts['domains'].destroy();
-
+  
   const top10 = analytics.topDomains.slice(0, 10);
   const labels = top10.map(d => d.domain);
-  const data = top10.map(d => d.totalActiveTimeMs / 3600000);
+  const data = top10.map(d => d.totalActiveTimeMs / 3600000); // hours
+
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316', '#14b8a6', '#64748b'];
 
   charts['domains'] = new Chart(ctx, {
     type: 'doughnut',
@@ -148,20 +170,24 @@ function renderTopDomainsChart(analytics) {
       labels: labels,
       datasets: [{
         data: data,
-        backgroundColor: CHART_COLORS,
-        hoverOffset: 8,
-        borderWidth: 2,
-        borderColor: 'rgba(128, 128, 128, 0.1)',
+        backgroundColor: colors,
+        hoverOffset: 15,
+        borderWidth: 4,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right', labels: { boxWidth: 12, padding: 16, font: { size: 11 } } },
-        tooltip: { padding: 10, cornerRadius: 6 }
+        legend: { position: 'right', labels: { boxWidth: 12, padding: 20, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          cornerRadius: 8
+        }
       },
-      cutout: '70%'
+      cutout: '75%'
     }
   });
 }
@@ -169,31 +195,32 @@ function renderTopDomainsChart(analytics) {
 function renderAllocationCharts(analytics) {
   const ctxTarget = document.getElementById('target-allocation-chart').getContext('2d');
   const ctxActual = document.getElementById('actual-allocation-chart').getContext('2d');
-
+  
   if (charts['target']) charts['target'].destroy();
   if (charts['actual']) charts['actual'].destroy();
 
-  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames?.[id] || id);
-
+  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames[id] || id);
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316', '#14b8a6', '#64748b'];
+  
   const targetData = Object.keys(CATEGORIES).map(id => {
-    const label = currentUserSettings.categoryNames?.[id] || id;
-    return currentUserSettings.goals?.[label] || 0;
+    const label = currentUserSettings.categoryNames[id];
+    return currentUserSettings.goals[label] || 0;
   });
 
   const sharedOptions = {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom', labels: { boxWidth: 10, padding: 14, font: { size: 10 } } },
-      tooltip: { padding: 10 }
+      legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15, font: { size: 10 } } },
+      tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', padding: 10 }
     },
-    borderWidth: 1,
-    borderColor: 'rgba(128, 128, 128, 0.1)'
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
   };
 
   charts['target'] = new Chart(ctxTarget, {
     type: 'pie',
-    data: { labels: labels, datasets: [{ data: targetData, backgroundColor: CHART_COLORS }] },
+    data: { labels: labels, datasets: [{ data: targetData, backgroundColor: colors }] },
     options: sharedOptions
   });
 
@@ -208,7 +235,7 @@ function renderAllocationCharts(analytics) {
 
   charts['actual'] = new Chart(ctxActual, {
     type: 'pie',
-    data: { labels: labels, datasets: [{ data: actualData, backgroundColor: CHART_COLORS }] },
+    data: { labels: labels, datasets: [{ data: actualData, backgroundColor: colors }] },
     options: sharedOptions
   });
 }
@@ -217,27 +244,27 @@ function renderHourlyPlaceholder(range = 'day') {
   const canvas = document.getElementById('hourly-chart');
   const ctx = canvas.getContext('2d');
   if (charts['hourly']) charts['hourly'].destroy();
-
+  
   let labels = [];
   let data = [];
-
+  
   if (range === 'day') {
-    labels = Array.from({ length: 24 }, (_, i) => i === 0 ? '12am' : i < 12 ? i + 'am' : i === 12 ? '12pm' : (i - 12) + 'pm');
+    labels = Array.from({length: 24}, (_, i) => i === 0 ? '12am' : i < 12 ? i + 'am' : i === 12 ? '12pm' : (i-12) + 'pm');
     data = [5, 2, 0, 0, 10, 40, 120, 180, 250, 140, 320, 200, 190, 80, 160, 280, 450, 120, 90, 60, 200, 150, 50, 20];
   } else if (range === 'week') {
     labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     data = [420, 510, 390, 600, 550, 200, 150];
   } else if (range === 'month') {
-    labels = Array.from({ length: 30 }, (_, i) => `Day ${i + 1}`);
-    data = Array.from({ length: 30 }, () => Math.floor(Math.random() * 500) + 100);
+    labels = Array.from({length: 30}, (_, i) => `Day ${i+1}`);
+    data = Array.from({length: 30}, () => Math.floor(Math.random() * 500) + 100);
   } else {
     labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
     data = [12000, 15000, 11000, 18000, 22000, 25000];
   }
-
-  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const lineColor = isDark ? '#888888' : '#555555';
-  const fillColor = isDark ? 'rgba(136,136,136,0.15)' : 'rgba(85,85,85,0.1)';
+  
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+  gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
 
   charts['hourly'] = new Chart(ctx, {
     type: 'line',
@@ -246,14 +273,14 @@ function renderHourlyPlaceholder(range = 'day') {
       datasets: [{
         label: 'Active Minutes',
         data: data,
-        borderColor: lineColor,
-        backgroundColor: fillColor,
-        borderWidth: 2,
+        borderColor: '#6366f1',
+        backgroundColor: gradient,
+        borderWidth: 3,
         fill: true,
         tension: 0.4,
-        pointRadius: range === 'month' ? 0 : 3,
+        pointRadius: 0,
         pointHoverRadius: 6,
-        pointBackgroundColor: lineColor
+        pointBackgroundColor: '#6366f1'
       }]
     },
     options: {
@@ -261,12 +288,12 @@ function renderHourlyPlaceholder(range = 'day') {
       maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: {
-          beginAtZero: true,
-          grid: { color: 'rgba(128,128,128,0.05)', drawBorder: false },
+        y: { 
+          beginAtZero: true, 
+          grid: { color: 'rgba(226, 232, 240, 0.05)', drawBorder: false },
           ticks: { font: { size: 10 } }
         },
-        x: {
+        x: { 
           grid: { display: false },
           ticks: { autoSkip: true, maxTicksLimit: 12, font: { size: 10 } }
         }
@@ -294,18 +321,18 @@ function populateGoalsEditor() {
   const container = document.getElementById('goals-editor-container');
   if (!container) return;
   container.innerHTML = '';
-
+  
   Object.keys(CATEGORIES).forEach(id => {
-    const currentLabel = currentUserSettings.categoryNames?.[id] || id;
-    const currentVal = currentUserSettings.goals?.[currentLabel] || 0;
-
+    const currentLabel = currentUserSettings.categoryNames[id] || id;
+    const currentVal = currentUserSettings.goals[currentLabel] || 0;
+    
     const wrapper = document.createElement('div');
     wrapper.style.display = 'flex';
     wrapper.style.flexDirection = 'column';
     wrapper.style.gap = '4px';
     wrapper.innerHTML = `
       <input type="text" data-id="${id}" class="category-name-input" value="${currentLabel}" 
-             style="font-size:11px; border:none; background:transparent; color:var(--text-muted); font-weight:600; text-transform:uppercase; letter-spacing:0.5px; outline:none;">
+             style="font-size:11px; border:none; background:transparent; color:var(--text-muted); font-weight:600; text-transform:uppercase;">
       <input type="number" data-id="${id}" class="category-goal-input" value="${currentVal}" 
              style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg-app); color:var(--text-main);">
     `;
@@ -316,22 +343,22 @@ function populateGoalsEditor() {
 document.getElementById('save-goals-btn').addEventListener('click', async () => {
   const nameInputs = document.querySelectorAll('.category-name-input');
   const goalInputs = document.querySelectorAll('.category-goal-input');
-
+  
   let newNames = {};
   let newGoals = {};
-
+  
   nameInputs.forEach((input, i) => {
     const id = input.dataset.id;
     const newName = input.value.trim() || id;
     const newVal = parseInt(goalInputs[i].value, 10) || 0;
-
+    
     newNames[id] = newName;
     newGoals[newName] = newVal;
   });
-
+  
   currentUserSettings.categoryNames = newNames;
   currentUserSettings.goals = newGoals;
-
+  
   await StorageManager.set('userSettings', currentUserSettings);
   alert("Custom categories and goals saved!");
   refreshDashboard();
@@ -356,11 +383,11 @@ async function exportData() {
   const domains = await StorageManager.get('domains');
   const sessions = await StorageManager.get('sessions');
   const userSettings = await StorageManager.get('userSettings');
-
+  
   const data = JSON.stringify({ domains, sessions, userSettings }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
-
+  
   const a = document.createElement('a');
   a.href = url;
   a.download = `ChronosAnalytics_Export_${new Date().toISOString().split('T')[0]}.json`;
@@ -382,6 +409,7 @@ document.getElementById('file-import-input').addEventListener('change', (e) => {
       const imported = JSON.parse(event.target.result);
       if (imported.domains) {
         const existingDomains = await StorageManager.get('domains') || {};
+        // Merge strategy: Overwrite matching domains with imported data if it has more active time, or just combine
         Object.keys(imported.domains).forEach(dom => {
           if (!existingDomains[dom]) {
             existingDomains[dom] = imported.domains[dom];
@@ -395,24 +423,24 @@ document.getElementById('file-import-input').addEventListener('change', (e) => {
         });
         await StorageManager.set('domains', existingDomains);
       }
-
+      
       if (imported.sessions) {
         const existingSessions = await StorageManager.get('sessions') || [];
         imported.sessions.forEach(isession => {
           const match = existingSessions.find(s => s.day === isession.day);
           if (match) {
-            match.activeMs += isession.activeMs || 0;
+             match.activeMs += isession.activeMs || 0;
           } else {
-            existingSessions.push(isession);
+             existingSessions.push(isession);
           }
         });
         await StorageManager.set('sessions', existingSessions);
       }
-
+      
       alert("Data successfully merged from file.");
       refreshDashboard();
-
-    } catch (err) {
+      
+    } catch(err) {
       alert("Invalid JSON file.");
     }
   };
@@ -421,22 +449,23 @@ document.getElementById('file-import-input').addEventListener('change', (e) => {
 
 // Auto-Sync History logic (run once to prime the dataset)
 async function autoSyncHistory() {
-  chrome.history.search({ text: '', maxResults: 100000, startTime: 0 }, async (results) => {
+  chrome.history.search({text: '', maxResults: 100000, startTime: 0}, async (results) => {
     const { extractDomain, categorizeDomain } = await import('../utils/categorization.js');
     const domainsDB = await StorageManager.get('domains') || {};
-
+    
     results.forEach(item => {
-      const domain = extractDomain(item.url);
+      const domain = extractDomain(item.url); // ExtractDomain isolates hostnames & subdomains, ignores paths
       if (domain) {
         if (!domainsDB[domain]) {
           domainsDB[domain] = {
-            domain: domain,
-            totalActiveTimeMs: item.visitCount * 180000, // Heuristic: 3 mins per visit
-            category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
-            visitCount: item.visitCount,
-            lastVisit: item.lastVisitTime
+             domain: domain,
+             totalActiveTimeMs: item.visitCount * 180000, // Heuristic: 3 mins per visit for history
+             category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
+             visitCount: item.visitCount,
+             lastVisit: item.lastVisitTime
           };
         } else {
+          // Note: Since history lacks direct active time, we just update visit counts
           domainsDB[domain].visitCount += item.visitCount;
           if (item.lastVisitTime > (domainsDB[domain].lastVisit || 0)) {
             domainsDB[domain].lastVisit = item.lastVisitTime;
@@ -444,7 +473,7 @@ async function autoSyncHistory() {
         }
       }
     });
-
+    
     await StorageManager.set('domains', domainsDB);
     currentUserSettings.hasSyncedHistory = true;
     await StorageManager.set('userSettings', currentUserSettings);
@@ -452,15 +481,13 @@ async function autoSyncHistory() {
   });
 }
 
-// ─── Tracker Tab ──────────────────────────────────────────────────────────────
-
 let currentTrackerPeriod = 'all_time';
 
 async function refreshTrackerTable() {
   const filter = document.getElementById('tracker-time-filter');
   const hideLow = document.getElementById('hide-low-usage')?.checked;
   if (filter) currentTrackerPeriod = filter.value;
-
+  
   if (currentTrackerPeriod === 'all_time') {
     let domainsDB = await StorageManager.get('domains') || {};
     if (hideLow) {
@@ -472,37 +499,38 @@ async function refreshTrackerTable() {
     }
     renderTrackerTable(domainsDB);
   } else {
+    // Generate filtered view from history API with time bounds
     const now = new Date();
     let startTime = 0;
-
+    
     now.setHours(0, 0, 0, 0); // Start of today
     if (currentTrackerPeriod === 'today') {
       startTime = now.getTime();
     } else if (currentTrackerPeriod === 'yesterday') {
-      startTime = now.getTime() - (24 * 3600000);
+      startTime = now.getTime() - (24 * 3600000); 
     } else if (currentTrackerPeriod === 'this_week') {
       startTime = now.getTime() - (now.getDay() * 24 * 3600000);
     } else if (currentTrackerPeriod === 'this_year') {
       const thisYear = new Date(now.getFullYear(), 0, 1);
       startTime = thisYear.getTime();
     }
-
-    chrome.history.search({ text: '', maxResults: 100000, startTime: startTime }, async (results) => {
+    
+    chrome.history.search({text: '', maxResults: 100000, startTime: startTime}, async (results) => {
       const { extractDomain, categorizeDomain } = await import('../utils/categorization.js');
       const tempDB = {};
-
+      
       results.forEach(item => {
         if (currentTrackerPeriod === 'yesterday' && item.lastVisitTime > now.getTime()) return;
-
+        
         const domain = extractDomain(item.url);
         if (domain) {
           if (!tempDB[domain]) {
             tempDB[domain] = {
-              domain: domain,
-              totalActiveTimeMs: item.visitCount * 180000,
-              category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
-              visitCount: item.visitCount,
-              lastVisit: item.lastVisitTime
+               domain: domain,
+               totalActiveTimeMs: item.visitCount * 180000, 
+               category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
+               visitCount: item.visitCount,
+               lastVisit: item.lastVisitTime
             };
           } else {
             tempDB[domain].visitCount += item.visitCount;
@@ -519,7 +547,7 @@ async function refreshTrackerTable() {
         });
       }
 
-      renderTrackerTable(finalDB, true);
+      renderTrackerTable(finalDB, true); 
     });
   }
 }
@@ -530,18 +558,18 @@ document.getElementById('hide-low-usage')?.addEventListener('change', refreshTra
 function renderTrackerTable(domainsDB, isFilterView = false) {
   const tbody = document.getElementById('tracker-table-body');
   const isCompare = document.getElementById('compare-all-time')?.checked;
-  if (!tbody) return;
+  if(!tbody) return;
   tbody.innerHTML = '';
-
-  const domainsArr = Object.values(domainsDB).sort((a, b) => b.totalActiveTimeMs - a.totalActiveTimeMs).slice(0, 50);
-
+  
+  const domainsArr = Object.values(domainsDB).sort((a,b) => b.totalActiveTimeMs - a.totalActiveTimeMs).slice(0, 50); 
+  
+  // Pre-load all-time domains for comparison if needed
   StorageManager.get('domains').then(allTimeDB => {
     domainsArr.forEach(d => {
       const tr = document.createElement('tr');
       const catId = Object.keys(CATEGORIES).find(key => CATEGORIES[key] === d.category) || 'OTHER';
-      const displayCat = currentUserSettings.categoryNames?.[catId] || catId;
-      const minutes = Math.floor(d.totalActiveTimeMs / 60000);
-
+      const displayCat = currentUserSettings.categoryNames[catId] || catId;
+      
       let compareHtml = '';
       if (isCompare && isFilterView) {
         const allTime = allTimeDB?.[d.domain]?.totalActiveTimeMs || 0;
@@ -551,81 +579,90 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
         const sign = diff >= 0 ? '+' : '-';
         compareHtml = `<span style="font-size: 10px; color: ${color}; margin-left: 8px;">(${sign}${diffMins}m vs life)</span>`;
       }
-
+      
       tr.innerHTML = `
         <td class="domain-cell">${d.domain}</td>
         <td class="category-cell"><span class="category-badge">${displayCat}</span></td>
         <td class="time-cell">
-          <input type="number" class="time-edit-input" data-domain="${d.domain}" value="${minutes}" style="width: 70px; padding: 4px; border-radius: 4px; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); text-align: right;" ${isFilterView ? 'disabled' : ''}> min
+          ${msToHoursFormat(d.totalActiveTimeMs)}
           ${compareHtml}
         </td>
         <td class="count-cell">${d.visitCount}</td>
       `;
       tbody.appendChild(tr);
     });
-
-    if (!isFilterView) {
-      document.querySelectorAll('.time-edit-input').forEach(input => {
-        input.addEventListener('change', async (e) => {
-          const domain = e.target.dataset.domain;
-          const newMins = parseInt(e.target.value, 10) || 0;
-          const realDb = await StorageManager.get('domains') || {};
-          if (realDb[domain]) {
-            realDb[domain].totalActiveTimeMs = newMins * 60000;
-            await StorageManager.set('domains', realDb);
-            refreshDashboard();
-          }
-        });
-      });
-    }
   });
-
+  
   currentTrackerDomainsArr = domainsArr;
   renderTrackerVisualCanvas(domainsArr);
 }
 
-document.getElementById('compare-all-time')?.addEventListener('change', refreshTrackerTable);
-
 function renderTrackerVisualCanvas(domainsArr) {
+  // Guard: Chart.js must be available
+  if (!window.Chart) {
+    loadChartJS().then(() => renderTrackerVisualCanvas(domainsArr));
+    return;
+  }
+
   const canvas = document.getElementById('tracker-pie-chart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (charts['tracker-pie']) charts['tracker-pie'].destroy();
 
   const topCount = 8;
-  const labels = domainsArr.slice(0, topCount).map(d => d.domain);
-  const data = domainsArr.slice(0, topCount).map(d => d.totalActiveTimeMs / 60000);
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316'];
 
-  charts['tracker-pie'] = new Chart(ctx, {
-    type: 'pie',
-    data: { labels: labels, datasets: [{ data: data, backgroundColor: CHART_COLORS.slice(0, topCount), borderWidth: 1, borderColor: 'rgba(128,128,128,0.1)' }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } }
+  if (!domainsArr || domainsArr.length === 0) {
+    // Render a placeholder if no data
+    charts['tracker-pie'] = new Chart(ctx, {
+      type: 'pie',
+      data: { labels: ['No data yet'], datasets: [{ data: [1], backgroundColor: ['rgba(99,102,241,0.2)'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  } else {
+    const slices = domainsArr.slice(0, topCount);
+    const labels = slices.map(d => d.domain);
+    // Ensure no zero values — Chart.js won't draw zero-value slices
+    const data = slices.map(d => Math.max(d.totalActiveTimeMs / 60000, 0.1));
+
+    charts['tracker-pie'] = new Chart(ctx, {
+      type: 'pie',
+      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, slices.length), borderWidth: 2, borderColor: 'rgba(255,255,255,0.08)' }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 10, family: 'Inter' }, color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${Math.round(ctx.parsed)}m`
+            }
+          }
+        }
       }
-    }
-  });
+    });
+  }
 
-  const aiCtx = document.getElementById('ai-activity-chart')?.getContext('2d');
-  if (!aiCtx) return;
+  // Render AI chart placeholder
+  const aiCanvas = document.getElementById('ai-activity-chart');
+  if (!aiCanvas) return;
+  const aiCtx = aiCanvas.getContext('2d');
   if (charts['ai-activity']) charts['ai-activity'].destroy();
   charts['ai-activity'] = new Chart(aiCtx, {
     type: 'doughnut',
-    data: { labels: ['Click "Analyze with AI" for insights'], datasets: [{ data: [1], backgroundColor: ['rgba(128,128,128,0.15)'] }] },
+    data: {
+      labels: ['Click "Analyze with AI"'],
+      datasets: [{ data: [1], backgroundColor: ['rgba(99,102,241,0.15)'], borderWidth: 1, borderColor: ['rgba(99,102,241,0.4)'] }]
+    },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      cutout: '80%',
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 10 } } }
-      }
+      cutout: '75%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }, tooltip: { enabled: false } }
     }
   });
 }
 
-// ─── AI Settings ──────────────────────────────────────────────────────────────
 
 function initAISettings() {
   const apiKeyInput = document.getElementById('gemini-api-key');
@@ -639,10 +676,10 @@ function initAISettings() {
 document.getElementById('save-ai-settings-btn').addEventListener('click', async () => {
   const apiKey = document.getElementById('gemini-api-key').value.trim();
   const profile = document.getElementById('user-profile').value.trim();
-
+  
   currentUserSettings.geminiApiKey = apiKey;
   currentUserSettings.userProfile = profile;
-
+  
   await StorageManager.set('userSettings', currentUserSettings);
   alert("AI settings saved!");
 });
@@ -650,15 +687,16 @@ document.getElementById('save-ai-settings-btn').addEventListener('click', async 
 async function runAIOptimization(btnId) {
   const apiKey = currentUserSettings.geminiApiKey;
   const profile = currentUserSettings.userProfile;
-
+  
   if (!apiKey) {
     alert("Please set your Gemini API Key in Settings first.");
+    // Redirect to settings tab
     document.querySelectorAll('.nav-item').forEach(btn => {
       if (btn.dataset.tab === 'settings') btn.click();
     });
     return;
   }
-
+  
   const btn = document.getElementById(btnId);
   const originalText = btn.innerText;
   btn.innerText = "Analyzing with AI...";
@@ -667,16 +705,16 @@ async function runAIOptimization(btnId) {
   try {
     const domainsDB = await StorageManager.get('domains') || {};
     const analytics = generateAnalytics(domainsDB);
-
+    
     const result = await callGeminiAI(apiKey, profile, analytics);
-
+    
     if (result && result.goals && result.categoryNames) {
       const summary = Object.entries(result.goals)
         .map(([cat, val]) => `${cat}: ${val}%`)
         .join('\n');
-
+        
       const planMsg = result.reasoning ? `AI Plan: ${result.reasoning}\n\n` : '';
-
+        
       if (confirm(`${planMsg}Gemini suggests the following category names and target goals:\n\n${summary}\n\nDo you want to apply this personalized role profile?`)) {
         currentUserSettings.goals = result.goals;
         currentUserSettings.categoryNames = result.categoryNames;
@@ -701,7 +739,7 @@ if (aiBtnMain) aiBtnMain.addEventListener('click', () => runAIOptimization('opti
 
 async function callGeminiAI(apiKey, profile, analytics) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-
+  
   const availableIds = Object.keys(CATEGORIES).join(', ');
   const actualUsage = Object.entries(analytics.categoryTime)
     .map(([cat, ms]) => `${cat}: ${Math.round(ms / 60000)}m`)
@@ -746,14 +784,14 @@ async function callGeminiAI(apiKey, profile, analytics) {
   }
 
   const content = result.candidates[0].content.parts[0].text;
-
+  
   // Resilient JSON extraction
   const jsonMatch = content.match(/\{[\s\S]*\}/);
   if (!jsonMatch) {
     console.error("No JSON found in Gemini response:", content);
     throw new Error("AI returned an invalid format. Please try again.");
   }
-
+  
   try {
     return JSON.parse(jsonMatch[0]);
   } catch (e) {
@@ -762,19 +800,18 @@ async function callGeminiAI(apiKey, profile, analytics) {
   }
 }
 
-// ─── AI Activity Tracker ──────────────────────────────────────────────────────
-
+// AI Activity Tracker Logic
 const aiActivityBtn = document.getElementById('analyze-activities-btn');
 if (aiActivityBtn) {
   aiActivityBtn.addEventListener('click', async () => {
-    const apiKey = currentUserSettings?.geminiApiKey;
+    const apiKey = currentUserSettings.geminiApiKey;
     if (!apiKey) {
       alert("Please set your Gemini API Key in Settings first.");
       const settingsBtn = document.querySelector('.nav-item[data-tab="settings"]');
-      if (settingsBtn) settingsBtn.click();
+      if(settingsBtn) settingsBtn.click();
       return;
     }
-
+    
     if (!currentTrackerDomainsArr || currentTrackerDomainsArr.length === 0) {
       alert("No data to analyze.");
       return;
@@ -785,8 +822,9 @@ if (aiActivityBtn) {
     aiActivityBtn.disabled = true;
 
     try {
+      // Grab top 20 domains to avoid massive prompts
       const topDomains = currentTrackerDomainsArr.slice(0, 20);
-      const usageList = topDomains.map(d => `${d.domain}: ${Math.floor(d.totalActiveTimeMs / 60000)}m`).join(', ');
+      const usageList = topDomains.map(d => `${d.domain}: ${Math.floor(d.totalActiveTimeMs/60000)}m`).join(', ');
 
       const prompt = `
         I have tracked the following browsing time for this user:
@@ -812,34 +850,35 @@ if (aiActivityBtn) {
 
       const result = await response.json();
       const content = result.candidates[0].content.parts[0].text;
-
+      
       const jsonMatch = content.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) throw new Error("No JSON found");
-
+      
       const activityData = JSON.parse(jsonMatch[0]);
-
-      // Update the chart with theme-consistent colors
+      
+      // Update the chart
       const aiCtx = document.getElementById('ai-activity-chart').getContext('2d');
       if (charts['ai-activity']) charts['ai-activity'].destroy();
-
+      
       const labels = Object.keys(activityData);
       const data = Object.values(activityData);
+      const colors = ['#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#06b6d4'];
 
       charts['ai-activity'] = new Chart(aiCtx, {
         type: 'doughnut',
-        data: { labels: labels, datasets: [{ data: data, backgroundColor: CHART_COLORS, borderWidth: 1, borderColor: 'rgba(128,128,128,0.1)' }] },
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)' }] },
         options: {
           responsive: true,
           maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
-            tooltip: { padding: 10 }
+          plugins: { 
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15, font: { size: 10 } } },
+            tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', padding: 10 }
           },
-          cutout: '70%'
+          cutout: '75%'
         }
       });
-
-    } catch (err) {
+      
+    } catch(err) {
       console.error(err);
       alert("Activity analysis failed. Check your API key or try again.");
     } finally {
