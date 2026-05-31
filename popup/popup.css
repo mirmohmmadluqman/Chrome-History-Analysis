@@ -1,12 +1,27 @@
 :root {
-  --bg-color: #0f1115;
-  --panel-bg: #1a1d24;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: #2b303b;
-  --accent: #3b82f6;
-  --accent-hover: #2563eb;
-  --green: #10b981;
+  --bg-color: #ffffff;
+  --panel-bg: #fcfcfc;
+  --text-main: #000000;
+  --text-muted: #888888;
+  --border-color: transparent;
+  --accent: #000000;
+  --accent-hover: #333333;
+  --accent-text: #ffffff;
+  --green: #059669;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #000000;
+    --panel-bg: #0a0a0a;
+    --text-main: #ffffff;
+    --text-muted: #888888;
+    --border-color: transparent;
+    --accent: #ffffff;
+    --accent-hover: #e5e5e5;
+    --accent-text: #000000;
+    --green: #059669;
+  }
 }
 
 * {
@@ -113,7 +128,7 @@ main {
 .primary-btn {
   width: 100%;
   background: var(--accent);
-  color: white;
+  color: var(--accent-text);
   border: none;
   border-radius: 6px;
   padding: 10px;

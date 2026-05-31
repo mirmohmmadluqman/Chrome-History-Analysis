@@ -86,8 +86,15 @@
         <section id="tab-temporal" class="tab-pane">
            <div class="charts-grid-1">
             <div class="chart-container">
-              <h3>Hourly Activity Distribution (24h)</h3>
-              <div class="placeholder-text">Line chart mapping peak interaction periods</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h3>Temporal behavior</h3>
+                <select id="temporal-range-select" style="padding: 8px; border-radius: 6px; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border);">
+                  <option value="day" selected>24 Hours</option>
+                  <option value="week">7 Days</option>
+                  <option value="month">30 Days</option>
+                  <option value="forever">All Time</option>
+                </select>
+              </div>
               <div class="canvas-wrapper"><canvas id="hourly-chart" height="100"></canvas></div>
             </div>
            </div>
@@ -105,16 +112,49 @@
               <div class="canvas-wrapper"><canvas id="target-allocation-chart"></canvas></div>
             </div>
           </div>
+          <div class="settings-panel" style="margin-top: 24px; text-align: center;">
+            <button id="optimize-ai-btn-main" class="secondary-btn" style="padding: 16px 32px; font-size: 16px;">Generate Pro Optimization Goals with AI</button>
+            <p class="subtitle" style="margin-top: 12px;">Gemini will analyze your profile and usage to suggest the best productivity benchmarks.</p>
+          </div>
         </section>
 
         <!-- SETTINGS TAB -->
         <section id="tab-settings" class="tab-pane">
           <div class="settings-panel">
+            <h2>Gemini AI Intelligence</h2>
+            <p class="subtitle">Power your target goals with AI-driven insights based on your role.</p>
+            <div style="margin-top: 16px;">
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">Gemini API Key</label>
+              <input type="password" id="gemini-api-key" placeholder="Enter your API Key" 
+                     style="width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-app); color:var(--text-main); margin-bottom: 16px;">
+              
+              <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">Your Professional Profile / Goals</label>
+              <textarea id="user-profile" placeholder="e.g., I am a senior developer focusing on system architecture and open-source contributions. I want to limit distractions like social media to under 5%." 
+                        style="width:100%; height: 100px; padding:10px; border:1px solid var(--border); border-radius:8px; background:var(--bg-app); color:var(--text-main); font-family: inherit; resize: vertical; margin-bottom: 16px;"></textarea>
+              
+              <button id="save-ai-settings-btn" class="secondary-btn">Save AI Settings</button>
+              <button id="optimize-ai-btn" class="outline-btn" style="margin-left: 8px;">Optimize Goals with AI</button>
+            </div>
+          </div>
+
+          <div class="settings-panel" style="margin-top: 24px;">
+            <h2>Target Optimization Goals</h2>
+            <p class="subtitle">Set your ideal time allocation percentages. Must sum to roughly 100%.</p>
+            <div id="goals-editor-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px;">
+              <!-- Javascript will populate this -->
+            </div>
+            <button id="save-goals-btn" class="secondary-btn">Save Manual Goals</button>
+          </div>
+          
+          <div class="settings-panel" style="margin-top: 24px;">
             <h2>Data Management</h2>
             <p class="subtitle">All data is kept local and never sent to external servers.</p>
-            <div style="margin-top:20px; display:flex; gap:16px;">
+            <div style="display:flex; gap:16px;">
+              <button id="import-file-btn" class="outline-btn">Import Data</button>
+              <button id="export-file-btn" class="outline-btn">Export JSON</button>
               <button id="reset-data-btn" class="danger-btn">Reset All Tracking Data</button>
             </div>
+            <input type="file" id="file-import-input" style="display: none;" accept=".json">
           </div>
         </section>
 

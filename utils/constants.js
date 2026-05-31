@@ -38,5 +38,7 @@ export const DEFAULT_SETTINGS = {
   theme: 'dark',
   idleTimeout: 60, // seconds until idle
   goals: DEFAULT_GOALS,
-  customRules: {} // Domain -> Category overrides
+  customRules: {}, // Domain -> Category overrides
+  geminiApiKey: '',
+  userProfile: ''
 };

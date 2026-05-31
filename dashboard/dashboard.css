@@ -1,12 +1,12 @@
 :root {
   --bg-app: #ffffff;
-  --bg-sidebar: #f8fafc;
-  --bg-panel: #ffffff;
+  --bg-sidebar: #fcfcfc;
+  --bg-panel: #fcfcfc;
   --border: #e2e8f0;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --accent: #0f172a;
-  --accent-hover: #334155;
+  --text-main: #000000;
+  --text-muted: #888888;
+  --accent: #555555;
+  --accent-hover: #333333;
   --accent-text: #ffffff;
   --green: #059669;
   --red: #dc2626;
@@ -14,15 +14,15 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-app: #0a0a0a;
-    --bg-sidebar: #171717;
-    --bg-panel: #171717;
-    --border: #262626;
-    --text-main: #f5f5f5;
+    --bg-app: #000000;
+    --bg-sidebar: #0a0a0a;
+    --bg-panel: #1a1a1a;
+    --border: #333333;
+    --text-main: #ffffff;
     --text-muted: #a3a3a3;
-    --accent: #f5f5f5;
-    --accent-hover: #d4d4d4;
-    --accent-text: #0a0a0a;
+    --accent: #666666;
+    --accent-hover: #888888;
+    --accent-text: #ffffff;
   }
 }
 
@@ -210,7 +210,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 .kpi-label {
@@ -256,7 +255,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 24px;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
 }
 
 .chart-container h3 {
@@ -284,5 +282,17 @@ body {
   border-radius: 12px;
   border: 1px solid var(--border);
 }
-.settings-panel h2 { margin-bottom: 12px; font-weight: 500; }
-.subtitle { color: var(--text-muted); font-size: 15px; margin-bottom: 24px; }
+#temporal-range-select {
+  border: none !important;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+  padding-right: 32px !important;
+}
