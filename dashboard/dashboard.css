@@ -250,11 +250,8 @@ body {
   margin-bottom: 32px;
 }
 
-/* Tracker Visualization Canvas — sticky top section */
+/* Tracker Visualization Canvas */
 .visualization-canvas {
-  position: sticky;
-  top: 0;
-  z-index: 5;
   background: var(--bg-app);
   padding-bottom: 24px;
   margin-bottom: 24px;
@@ -299,6 +296,24 @@ body {
   font-weight: 600;
   margin-bottom: 6px;
   color: var(--text-main);
+}
+
+/* AI Optimization Button */
+.ai-pro-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white !important;
+  border: none;
+  font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.ai-pro-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
 }
 
 .subtitle {

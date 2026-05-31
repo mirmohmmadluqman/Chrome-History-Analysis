@@ -68,10 +68,10 @@ function updateKPIs(analytics) {
   document.getElementById('kpi-distraction').textContent = `${analytics.distractionRatio}%`;
 }
 
-// Chart palette — uses the current theme's accent colors (no pink/indigo hardcoded)
+// Vibrant chart palette — used for all charts and category badges
 const CHART_COLORS = [
-  '#555555', '#888888', '#333333', '#aaaaaa', '#666666',
-  '#444444', '#999999', '#777777', '#bbbbbb', '#222222'
+  '#6366f1', '#ec4899', '#10b981', '#f59e0b', '#3b82f6',
+  '#8b5cf6', '#f97316', '#14b8a6', '#ef4444', '#06b6d4'
 ];
 
 // Dark-mode-aware color for text
@@ -538,9 +538,12 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
   StorageManager.get('domains').then(allTimeDB => {
     domainsArr.forEach(d => {
       const tr = document.createElement('tr');
-      const catId = Object.keys(CATEGORIES).find(key => CATEGORIES[key] === d.category) || 'OTHER';
+      const catIds = Object.keys(CATEGORIES);
+      const catId = catIds.find(key => CATEGORIES[key] === d.category) || 'OTHER';
+      const catIndex = catIds.indexOf(catId);
       const displayCat = currentUserSettings.categoryNames?.[catId] || catId;
       const minutes = Math.floor(d.totalActiveTimeMs / 60000);
+      const badgeColor = CHART_COLORS[catIndex % CHART_COLORS.length];
 
       let compareHtml = '';
       if (isCompare && isFilterView) {
@@ -554,7 +557,7 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
 
       tr.innerHTML = `
         <td class="domain-cell">${d.domain}</td>
-        <td class="category-cell"><span class="category-badge">${displayCat}</span></td>
+        <td class="category-cell"><span class="category-badge" style="background: ${badgeColor}20; color: ${badgeColor}; border: 1px solid ${badgeColor}40;">${displayCat}</span></td>
         <td class="time-cell">
           <input type="number" class="time-edit-input" data-domain="${d.domain}" value="${minutes}" style="width: 70px; padding: 4px; border-radius: 4px; background: var(--bg-panel); color: var(--text-main); border: 1px solid var(--border); text-align: right;" ${isFilterView ? 'disabled' : ''}> min
           ${compareHtml}
