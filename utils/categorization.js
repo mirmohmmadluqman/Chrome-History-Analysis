@@ -46,9 +46,9 @@ const DOMAIN_MAP = {
   'coursera.org': CATEGORIES.LEARNING,
   'udemy.com': CATEGORIES.LEARNING,
 
-  'etherscan.io': CATEGORIES.WEB3,
-  'book.getfoundry.sh': CATEGORIES.WEB3,
-  'dexscreener.com': CATEGORIES.WEB3
+  'etherscan.io': CATEGORIES.SPECIALIZED,
+  'book.getfoundry.sh': CATEGORIES.SPECIALIZED,
+  'dexscreener.com': CATEGORIES.SPECIALIZED
 };
 
 /**

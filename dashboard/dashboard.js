@@ -20,6 +20,7 @@ document.querySelectorAll('.nav-item').forEach(button => {
 
 let charts = {}; // Store chart instances to destroy and recreate
 let currentUserSettings = null; // Store settings
+let currentTrackerDomainsArr = []; // Store current filtered domains for AI analysis
 
 export async function refreshDashboard() {
   const domainsDB = await StorageManager.get('domains') || {};
@@ -29,8 +30,12 @@ export async function refreshDashboard() {
   updateKPIs(analytics);
   populateGoalsEditor();
   initAISettings();
+  refreshTrackerTable();
   
-  // Wait to ensure DOM guarantees and Chart.js lib loading
+  // Auto-sync history in background if it hasn't been done yet
+  if (!currentUserSettings.hasSyncedHistory) {
+    autoSyncHistory();
+  }
   if (window.Chart) {
     renderCharts(analytics);
   } else {
@@ -63,9 +68,18 @@ function updateKPIs(analytics) {
   document.getElementById('kpi-distraction').textContent = `${analytics.distractionRatio}%`;
 }
 
+function getGradient(ctx, color1, color2) {
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, color1);
+  gradient.addColorStop(1, color2);
+  return gradient;
+}
+
 function renderCharts(analytics) {
-  Chart.defaults.color = '#94a3b8';
-  Chart.defaults.font.family = '-apple-system, system-ui, sans-serif';
+  const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  Chart.defaults.color = isDark ? '#94a3b8' : '#64748b';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.font.size = 12;
 
   renderCategoryChart(analytics);
   renderTopDomainsChart(analytics);
@@ -74,13 +88,33 @@ function renderCharts(analytics) {
 }
 
 function renderCategoryChart(analytics) {
-  const ctx = document.getElementById('category-chart').getContext('2d');
+  const canvas = document.getElementById('category-chart');
+  const ctx = canvas.getContext('2d');
   
   if (charts['category']) charts['category'].destroy();
   
-  const labels = Object.keys(analytics.categoryTime);
-  const data = Object.values(analytics.categoryTime).map(ms => ms / 3600000); // in hours
-  const bgColors = labels.map(label => CATEGORY_COLORS[label] || '#64748b');
+  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames[id] || id);
+  const data = Object.keys(CATEGORIES).map(id => (analytics.categoryTime[CATEGORIES[id]] || 0) / 3600000); // in hours
+  
+  // Use vibrant gradients for bars
+  const colors = [
+    ['#6366f1', '#a855f7'], // Indigo -> Purple
+    ['#ec4899', '#f43f5e'], // Pink -> Rose
+    ['#10b981', '#3b82f6'], // Emerald -> Blue
+    ['#f59e0b', '#ef4444'], // Amber -> Red
+    ['#06b6d4', '#3b82f6'], // Cyan -> Blue
+    ['#8b5cf6', '#d946ef'], // Violet -> Fuchsia
+    ['#f97316', '#facc15'], // Orange -> Yellow
+    ['#14b8a6', '#059669'], // Teal -> Green
+    ['#64748b', '#475569']  // Slate
+  ];
+
+  const barGradients = colors.map(pair => {
+    const g = ctx.createLinearGradient(0, 0, 0, 300);
+    g.addColorStop(0, pair[0]);
+    g.addColorStop(1, pair[1] || pair[0]);
+    return g;
+  });
 
   charts['category'] = new Chart(ctx, {
     type: 'bar',
@@ -89,16 +123,29 @@ function renderCategoryChart(analytics) {
       datasets: [{
         label: 'Hours Active',
         data: data,
-        backgroundColor: bgColors,
-        borderRadius: 4
+        backgroundColor: barGradients,
+        borderRadius: 8,
+        borderWidth: 0,
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          cornerRadius: 8,
+          titleFont: { size: 14, weight: 'bold' }
+        }
+      },
       scales: {
-        y: { beginAtZero: true, grid: { color: '#2b303b' } },
+        y: { 
+          beginAtZero: true, 
+          grid: { color: 'rgba(226, 232, 240, 0.1)', drawBorder: false },
+          ticks: { callback: value => value + 'h' }
+        },
         x: { grid: { display: false } }
       }
     }
@@ -106,7 +153,8 @@ function renderCategoryChart(analytics) {
 }
 
 function renderTopDomainsChart(analytics) {
-  const ctx = document.getElementById('top-domains-chart').getContext('2d');
+  const canvas = document.getElementById('top-domains-chart');
+  const ctx = canvas.getContext('2d');
   
   if (charts['domains']) charts['domains'].destroy();
   
@@ -114,24 +162,32 @@ function renderTopDomainsChart(analytics) {
   const labels = top10.map(d => d.domain);
   const data = top10.map(d => d.totalActiveTimeMs / 3600000); // hours
 
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316', '#14b8a6', '#64748b'];
+
   charts['domains'] = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels: labels,
       datasets: [{
         data: data,
-        backgroundColor: ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#14b8a6', '#f97316', '#64748b', '#475569'],
-        borderWidth: 0,
-        hoverOffset: 4
+        backgroundColor: colors,
+        hoverOffset: 15,
+        borderWidth: 4,
+        borderColor: 'rgba(255, 255, 255, 0.05)',
       }]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { position: 'right' }
+        legend: { position: 'right', labels: { boxWidth: 12, padding: 20, font: { size: 11 } } },
+        tooltip: {
+          backgroundColor: 'rgba(15, 23, 42, 0.9)',
+          padding: 12,
+          cornerRadius: 8
+        }
       },
-      cutout: '70%'
+      cutout: '75%'
     }
   });
 }
@@ -143,53 +199,73 @@ function renderAllocationCharts(analytics) {
   if (charts['target']) charts['target'].destroy();
   if (charts['actual']) charts['actual'].destroy();
 
-  const activeGoals = currentUserSettings.goals || DEFAULT_GOALS;
-  const labels = Object.keys(activeGoals);
-  const targetData = Object.values(activeGoals);
-  const bgColors = labels.map(label => CATEGORY_COLORS[label] || '#64748b');
+  const labels = Object.keys(CATEGORIES).map(id => currentUserSettings.categoryNames[id] || id);
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316', '#14b8a6', '#64748b'];
+  
+  const targetData = Object.keys(CATEGORIES).map(id => {
+    const label = currentUserSettings.categoryNames[id];
+    return currentUserSettings.goals[label] || 0;
+  });
+
+  const sharedOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15, font: { size: 10 } } },
+      tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', padding: 10 }
+    },
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.1)'
+  };
 
   charts['target'] = new Chart(ctxTarget, {
     type: 'pie',
-    data: { labels: labels, datasets: [{ data: targetData, backgroundColor: bgColors, borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    data: { labels: labels, datasets: [{ data: targetData, backgroundColor: colors }] },
+    options: sharedOptions
   });
 
-  // Calculate actual percentage distribution
-  let actualData = [];
-  if (analytics.totalActiveTime === 0) {
-    actualData = labels.map(() => 0);
-  } else {
-    actualData = labels.map(cat => Math.round((analytics.categoryTime[cat] / analytics.totalActiveTime) * 100));
+  let actualData = labels.map(() => 0);
+  if (analytics.totalActiveTime > 0) {
+    actualData = Object.keys(CATEGORIES).map(id => {
+      const internalName = CATEGORIES[id];
+      const timeMs = analytics.categoryTime[internalName] || 0;
+      return Math.round((timeMs / analytics.totalActiveTime) * 100);
+    });
   }
 
   charts['actual'] = new Chart(ctxActual, {
     type: 'pie',
-    data: { labels: labels, datasets: [{ data: actualData, backgroundColor: bgColors, borderWidth: 0 }] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    data: { labels: labels, datasets: [{ data: actualData, backgroundColor: colors }] },
+    options: sharedOptions
   });
 }
 
 function renderHourlyPlaceholder(range = 'day') {
-  const ctx = document.getElementById('hourly-chart').getContext('2d');
+  const canvas = document.getElementById('hourly-chart');
+  const ctx = canvas.getContext('2d');
   if (charts['hourly']) charts['hourly'].destroy();
   
   let labels = [];
   let data = [];
   
   if (range === 'day') {
-    labels = ['12am', '1am', '2am', '3am', '4am', '5am', '6am', '7am', '8am', '9am', '10am', '11am', '12pm', '1pm', '2pm', '3pm', '4pm', '5pm', '6pm', '7pm', '8pm', '9pm', '10pm', '11pm'];
+    labels = Array.from({length: 24}, (_, i) => i === 0 ? '12am' : i < 12 ? i + 'am' : i === 12 ? '12pm' : (i-12) + 'pm');
     data = [5, 2, 0, 0, 10, 40, 120, 180, 250, 140, 320, 200, 190, 80, 160, 280, 450, 120, 90, 60, 200, 150, 50, 20];
   } else if (range === 'week') {
     labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    data = [420, 510, 390, 600, 550, 200, 150]; // Minutes per day
+    data = [420, 510, 390, 600, 550, 200, 150];
   } else if (range === 'month') {
     labels = Array.from({length: 30}, (_, i) => `Day ${i+1}`);
     data = Array.from({length: 30}, () => Math.floor(Math.random() * 500) + 100);
-  } else { // forever
+  } else {
     labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-    data = [12000, 15000, 11000, 18000, 22000, 25000]; // Minutes per month
+    data = [12000, 15000, 11000, 18000, 22000, 25000];
   }
   
+  const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+  gradient.addColorStop(0, 'rgba(99, 102, 241, 0.4)');
+  gradient.addColorStop(1, 'rgba(99, 102, 241, 0)');
+
   charts['hourly'] = new Chart(ctx, {
     type: 'line',
     data: {
@@ -197,14 +273,14 @@ function renderHourlyPlaceholder(range = 'day') {
       datasets: [{
         label: 'Active Minutes',
         data: data,
-        borderColor: '#8b5cf6',
-        backgroundColor: 'rgba(139, 92, 246, 0.15)',
-        borderWidth: 2,
+        borderColor: '#6366f1',
+        backgroundColor: gradient,
+        borderWidth: 3,
         fill: true,
-        tension: 0,
-        pointRadius: range === 'month' ? 0 : 3,
+        tension: 0.4,
+        pointRadius: 0,
         pointHoverRadius: 6,
-        stepped: false
+        pointBackgroundColor: '#6366f1'
       }]
     },
     options: {
@@ -214,16 +290,12 @@ function renderHourlyPlaceholder(range = 'day') {
       scales: {
         y: { 
           beginAtZero: true, 
-          grid: { color: 'rgba(148, 163, 184, 0.05)' },
-          title: { display: true, text: range === 'forever' ? 'Minutes' : 'Active Minutes', font: { size: 10 } }
+          grid: { color: 'rgba(226, 232, 240, 0.05)', drawBorder: false },
+          ticks: { font: { size: 10 } }
         },
         x: { 
           grid: { display: false },
-          ticks: {
-            maxRotation: 0,
-            autoSkip: true,
-            maxTicksLimit: 12
-          }
+          ticks: { autoSkip: true, maxTicksLimit: 12, font: { size: 10 } }
         }
       }
     }
@@ -250,12 +322,18 @@ function populateGoalsEditor() {
   if (!container) return;
   container.innerHTML = '';
   
-  const activeGoals = currentUserSettings.goals || DEFAULT_GOALS;
-  Object.keys(activeGoals).forEach(category => {
+  Object.keys(CATEGORIES).forEach(id => {
+    const currentLabel = currentUserSettings.categoryNames[id] || id;
+    const currentVal = currentUserSettings.goals[currentLabel] || 0;
+    
     const wrapper = document.createElement('div');
+    wrapper.style.display = 'flex';
+    wrapper.style.flexDirection = 'column';
+    wrapper.style.gap = '4px';
     wrapper.innerHTML = `
-      <label style="display:block; font-size:12px; margin-bottom:4px; color:var(--text-muted);">${category}</label>
-      <input type="number" data-category="${category}" value="${activeGoals[category]}" 
+      <input type="text" data-id="${id}" class="category-name-input" value="${currentLabel}" 
+             style="font-size:11px; border:none; background:transparent; color:var(--text-muted); font-weight:600; text-transform:uppercase;">
+      <input type="number" data-id="${id}" class="category-goal-input" value="${currentVal}" 
              style="width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; background:var(--bg-app); color:var(--text-main);">
     `;
     container.appendChild(wrapper);
@@ -263,16 +341,36 @@ function populateGoalsEditor() {
 }
 
 document.getElementById('save-goals-btn').addEventListener('click', async () => {
-  const inputs = document.querySelectorAll('#goals-editor-container input');
+  const nameInputs = document.querySelectorAll('.category-name-input');
+  const goalInputs = document.querySelectorAll('.category-goal-input');
+  
+  let newNames = {};
   let newGoals = {};
-  inputs.forEach(input => {
-    newGoals[input.dataset.category] = parseInt(input.value, 10) || 0;
+  
+  nameInputs.forEach((input, i) => {
+    const id = input.dataset.id;
+    const newName = input.value.trim() || id;
+    const newVal = parseInt(goalInputs[i].value, 10) || 0;
+    
+    newNames[id] = newName;
+    newGoals[newName] = newVal;
   });
   
+  currentUserSettings.categoryNames = newNames;
   currentUserSettings.goals = newGoals;
+  
   await StorageManager.set('userSettings', currentUserSettings);
-  alert("Target optimization goals updated!");
+  alert("Custom categories and goals saved!");
   refreshDashboard();
+});
+
+document.getElementById('reset-categories-btn').addEventListener('click', async () => {
+  if (confirm("Reset all category labels to defaults?")) {
+    currentUserSettings.categoryNames = { ...CATEGORIES };
+    currentUserSettings.goals = { ...DEFAULT_GOALS };
+    await StorageManager.set('userSettings', currentUserSettings);
+    refreshDashboard();
+  }
 });
 
 // JSON Export Logic
@@ -349,30 +447,27 @@ document.getElementById('file-import-input').addEventListener('change', (e) => {
   reader.readAsText(file);
 });
 
-// Sync Chrome History button manually dumps browsing history into domains to prime the UI
-document.getElementById('import-history-btn').addEventListener('click', () => {
-  chrome.history.search({text: '', maxResults: 1000, startTime: Date.now() - (90 * 24 * 60 * 60 * 1000)}, async (results) => {
-    let imported = 0;
+// Auto-Sync History logic (run once to prime the dataset)
+async function autoSyncHistory() {
+  chrome.history.search({text: '', maxResults: 100000, startTime: 0}, async (results) => {
     const { extractDomain, categorizeDomain } = await import('../utils/categorization.js');
     const domainsDB = await StorageManager.get('domains') || {};
     
     results.forEach(item => {
-      const domain = extractDomain(item.url);
+      const domain = extractDomain(item.url); // ExtractDomain isolates hostnames & subdomains, ignores paths
       if (domain) {
         if (!domainsDB[domain]) {
           domainsDB[domain] = {
              domain: domain,
-             totalActiveTimeMs: item.visitCount * 60000, 
+             totalActiveTimeMs: item.visitCount * 180000, // Heuristic: 3 mins per visit for history
              category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
              visitCount: item.visitCount,
              lastVisit: item.lastVisitTime
           };
-          imported++;
         } else {
-          // If already exists, safely bump stats based on history difference if necessary
-          // Note: Since history lacks direct active time, we just update visit counts strictly missing
+          // Note: Since history lacks direct active time, we just update visit counts
           domainsDB[domain].visitCount += item.visitCount;
-          if (item.lastVisitTime > domainsDB[domain].lastVisit) {
+          if (item.lastVisitTime > (domainsDB[domain].lastVisit || 0)) {
             domainsDB[domain].lastVisit = item.lastVisitTime;
           }
         }
@@ -380,10 +475,176 @@ document.getElementById('import-history-btn').addEventListener('click', () => {
     });
     
     await StorageManager.set('domains', domainsDB);
-    alert(`Successfully synced and merged historical data. Processed ${imported} new domains.`);
+    currentUserSettings.hasSyncedHistory = true;
+    await StorageManager.set('userSettings', currentUserSettings);
     refreshDashboard();
   });
-});
+}
+
+let currentTrackerPeriod = 'all_time';
+
+async function refreshTrackerTable() {
+  const filter = document.getElementById('tracker-time-filter');
+  const hideLow = document.getElementById('hide-low-usage')?.checked;
+  if (filter) currentTrackerPeriod = filter.value;
+  
+  if (currentTrackerPeriod === 'all_time') {
+    let domainsDB = await StorageManager.get('domains') || {};
+    if (hideLow) {
+      const filtered = {};
+      Object.keys(domainsDB).forEach(k => {
+        if (domainsDB[k].totalActiveTimeMs >= 300000) filtered[k] = domainsDB[k];
+      });
+      domainsDB = filtered;
+    }
+    renderTrackerTable(domainsDB);
+  } else {
+    // Generate filtered view from history API with time bounds
+    const now = new Date();
+    let startTime = 0;
+    
+    now.setHours(0, 0, 0, 0); // Start of today
+    if (currentTrackerPeriod === 'today') {
+      startTime = now.getTime();
+    } else if (currentTrackerPeriod === 'yesterday') {
+      startTime = now.getTime() - (24 * 3600000); 
+    } else if (currentTrackerPeriod === 'this_week') {
+      startTime = now.getTime() - (now.getDay() * 24 * 3600000);
+    } else if (currentTrackerPeriod === 'this_year') {
+      const thisYear = new Date(now.getFullYear(), 0, 1);
+      startTime = thisYear.getTime();
+    }
+    
+    chrome.history.search({text: '', maxResults: 100000, startTime: startTime}, async (results) => {
+      const { extractDomain, categorizeDomain } = await import('../utils/categorization.js');
+      const tempDB = {};
+      
+      results.forEach(item => {
+        if (currentTrackerPeriod === 'yesterday' && item.lastVisitTime > now.getTime()) return;
+        
+        const domain = extractDomain(item.url);
+        if (domain) {
+          if (!tempDB[domain]) {
+            tempDB[domain] = {
+               domain: domain,
+               totalActiveTimeMs: item.visitCount * 180000, 
+               category: categorizeDomain(domain, currentUserSettings?.customRules || {}),
+               visitCount: item.visitCount,
+               lastVisit: item.lastVisitTime
+            };
+          } else {
+            tempDB[domain].visitCount += item.visitCount;
+            tempDB[domain].totalActiveTimeMs += (item.visitCount * 180000);
+          }
+        }
+      });
+
+      let finalDB = tempDB;
+      if (hideLow) {
+        finalDB = {};
+        Object.keys(tempDB).forEach(k => {
+          if (tempDB[k].totalActiveTimeMs >= 300000) finalDB[k] = tempDB[k];
+        });
+      }
+
+      renderTrackerTable(finalDB, true); 
+    });
+  }
+}
+
+document.getElementById('tracker-time-filter')?.addEventListener('change', refreshTrackerTable);
+document.getElementById('hide-low-usage')?.addEventListener('change', refreshTrackerTable);
+
+function renderTrackerTable(domainsDB, isFilterView = false) {
+  const tbody = document.getElementById('tracker-table-body');
+  const isCompare = document.getElementById('compare-all-time')?.checked;
+  if(!tbody) return;
+  tbody.innerHTML = '';
+  
+  const domainsArr = Object.values(domainsDB).sort((a,b) => b.totalActiveTimeMs - a.totalActiveTimeMs).slice(0, 50); 
+  
+  // Pre-load all-time domains for comparison if needed
+  StorageManager.get('domains').then(allTimeDB => {
+    domainsArr.forEach(d => {
+      const tr = document.createElement('tr');
+      const catId = Object.keys(CATEGORIES).find(key => CATEGORIES[key] === d.category) || 'OTHER';
+      const displayCat = currentUserSettings.categoryNames[catId] || catId;
+      const minutes = Math.floor(d.totalActiveTimeMs / 60000);
+
+      let compareHtml = '';
+      if (isCompare && isFilterView) {
+        const allTime = allTimeDB?.[d.domain]?.totalActiveTimeMs || 0;
+        const diff = d.totalActiveTimeMs - allTime;
+        const diffMins = Math.floor(Math.abs(diff) / 60000);
+        const color = diff >= 0 ? 'var(--green)' : 'var(--red)';
+        const sign = diff >= 0 ? '+' : '-';
+        compareHtml = `<span style="font-size: 10px; color: ${color}; margin-left: 8px;">(${sign}${diffMins}m vs life)</span>`;
+      }
+      
+      tr.innerHTML = `
+        <td class="domain-cell">${d.domain}</td>
+        <td class="category-cell"><span class="category-badge">${displayCat}</span></td>
+        <td class="time-cell">
+          <input type="number" class="time-edit-input" data-domain="${d.domain}" value="${minutes}" style="width: 70px; padding: 4px; border-radius: 4px; background: var(--glass-bg); color: var(--text-main); border: 1px solid var(--glass-border); text-align: right;" ${isFilterView ? 'disabled' : ''}> min
+          ${compareHtml}
+        </td>
+        <td class="count-cell">${d.visitCount}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    if (!isFilterView) {
+      document.querySelectorAll('.time-edit-input').forEach(input => {
+        input.addEventListener('change', async (e) => {
+          const domain = e.target.dataset.domain;
+          const newMins = parseInt(e.target.value, 10) || 0;
+          const realDb = await StorageManager.get('domains') || {};
+          if (realDb[domain]) {
+            realDb[domain].totalActiveTimeMs = newMins * 60000;
+            await StorageManager.set('domains', realDb);
+            refreshDashboard();
+          }
+        });
+      });
+    }
+  });
+  
+  currentTrackerDomainsArr = domainsArr;
+  renderTrackerVisualCanvas(domainsArr);
+}
+
+function renderTrackerVisualCanvas(domainsArr) {
+  const canvas = document.getElementById('tracker-pie-chart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  if (charts['tracker-pie']) charts['tracker-pie'].destroy();
+  
+  const topCount = 8;
+  const labels = domainsArr.slice(0, topCount).map(d => d.domain);
+  const data = domainsArr.slice(0, topCount).map(d => d.totalActiveTimeMs / 60000);
+  const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316'];
+
+  charts['tracker-pie'] = new Chart(ctx, {
+    type: 'pie',
+    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: 'rgba(255,255,255,0.05)' }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } }
+      }
+    }
+  });
+
+  const aiCtx = document.getElementById('ai-activity-chart').getContext('2d');
+  if (charts['ai-activity']) charts['ai-activity'].destroy();
+  charts['ai-activity'] = new Chart(aiCtx, {
+    type: 'doughnut',
+    data: { labels: ['Analyze for Activity Insights'], datasets: [{ data: [1], backgroundColor: ['var(--glass-bg)'] }] },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '80%', plugins: { legend: { position: 'bottom' } } }
+  });
+}
+
 
 function initAISettings() {
   const apiKeyInput = document.getElementById('gemini-api-key');
@@ -427,15 +688,18 @@ async function runAIOptimization(btnId) {
     const domainsDB = await StorageManager.get('domains') || {};
     const analytics = generateAnalytics(domainsDB);
     
-    const suggestedGoals = await callGeminiAI(apiKey, profile, analytics);
+    const result = await callGeminiAI(apiKey, profile, analytics);
     
-    if (suggestedGoals) {
-      const summary = Object.entries(suggestedGoals)
+    if (result && result.goals && result.categoryNames) {
+      const summary = Object.entries(result.goals)
         .map(([cat, val]) => `${cat}: ${val}%`)
         .join('\n');
         
-      if (confirm(`Gemini suggests the following target goals:\n\n${summary}\n\nDo you want to apply these?`)) {
-        currentUserSettings.goals = suggestedGoals;
+      const planMsg = result.reasoning ? `AI Plan: ${result.reasoning}\n\n` : '';
+        
+      if (confirm(`${planMsg}Gemini suggests the following category names and target goals:\n\n${summary}\n\nDo you want to apply this personalized role profile?`)) {
+        currentUserSettings.goals = result.goals;
+        currentUserSettings.categoryNames = result.categoryNames;
         await StorageManager.set('userSettings', currentUserSettings);
         refreshDashboard();
       }
@@ -458,7 +722,7 @@ if (aiBtnMain) aiBtnMain.addEventListener('click', () => runAIOptimization('opti
 async function callGeminiAI(apiKey, profile, analytics) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
   
-  const categories = Object.values(CATEGORIES).join(', ');
+  const availableIds = Object.keys(CATEGORIES).join(', ');
   const actualUsage = Object.entries(analytics.categoryTime)
     .map(([cat, ms]) => `${cat}: ${Math.round(ms / 60000)}m`)
     .join(', ');
@@ -466,13 +730,20 @@ async function callGeminiAI(apiKey, profile, analytics) {
   const prompt = `
     User Profile: ${profile}
     Current Local Browsing Usage (last few days): ${actualUsage}
-    Available Categories: ${categories}
+    Available Category Slots (internal IDs): ${availableIds}
     
-    Task: suggest ideal target goal percentages for each category that would improve productivity and match the user's professional profile.
+    Task: 
+    1. Rename the Available Category Slots to fit the user's specific professional role (e.g. if they are a GTM Engineer, rename 'DEVELOPMENT' to 'GTM Engineering', 'WEB3' to 'CRM & Analytics', etc.). Be creative and professional.
+    2. Suggest ideal target goal percentages for these RENAMED categories.
+    3. Provide a brief 1-sentence 'reasoning' for this allocation.
+
     Constraints:
     1. The percentages MUST sum to exactly 100%.
-    2. Return ONLY a valid JSON object where keys are the category names and values are integers.
-    3. Do not include any other text or explanation.
+    2. Return ONLY a valid JSON object with three keys:
+       - 'categoryNames': { "ID": "New Name" } for ALL available slots.
+       - 'goals': { "New Name": percentage } for ALL new names.
+       - 'reasoning': "string"
+    3. Do not include any other text.
   `;
 
   const response = await fetch(url, {
@@ -496,14 +767,107 @@ async function callGeminiAI(apiKey, profile, analytics) {
 
   const content = result.candidates[0].content.parts[0].text;
   
-  // Clean potential markdown code blocks
-  const jsonStr = content.replace(/```json/g, '').replace(/```/g, '').trim();
+  // Resilient JSON extraction
+  const jsonMatch = content.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) {
+    console.error("No JSON found in Gemini response:", content);
+    throw new Error("AI returned an invalid format. Please try again.");
+  }
+  
   try {
-    return JSON.parse(jsonStr);
+    return JSON.parse(jsonMatch[0]);
   } catch (e) {
     console.error("Failed to parse Gemini JSON:", content);
     throw new Error("AI returned an invalid format. Please try again.");
   }
+}
+
+// AI Activity Tracker Logic
+const aiActivityBtn = document.getElementById('analyze-activities-btn');
+if (aiActivityBtn) {
+  aiActivityBtn.addEventListener('click', async () => {
+    const apiKey = currentUserSettings.geminiApiKey;
+    if (!apiKey) {
+      alert("Please set your Gemini API Key in Settings first.");
+      const settingsBtn = document.querySelector('.nav-item[data-tab="settings"]');
+      if(settingsBtn) settingsBtn.click();
+      return;
+    }
+    
+    if (!currentTrackerDomainsArr || currentTrackerDomainsArr.length === 0) {
+      alert("No data to analyze.");
+      return;
+    }
+
+    const originalText = aiActivityBtn.innerText;
+    aiActivityBtn.innerText = "Analyzing...";
+    aiActivityBtn.disabled = true;
+
+    try {
+      // Grab top 20 domains to avoid massive prompts
+      const topDomains = currentTrackerDomainsArr.slice(0, 20);
+      const usageList = topDomains.map(d => `${d.domain}: ${Math.floor(d.totalActiveTimeMs/60000)}m`).join(', ');
+
+      const prompt = `
+        I have tracked the following browsing time for this user:
+        ${usageList}
+
+        Group these websites into 4-6 broad activity categories based on what they are typically used for (e.g., 'Coding/Development', 'Video Streaming', 'Social Scrolling', 'Research', 'General Reading'). 
+        Calculate the total estimated percentage of time spent in each new broad activity category.
+        
+        Constraints:
+        1. Percentages MUST sum to exactly 100.
+        2. Return ONLY a valid JSON object strictly in this format: 
+           { "Activity Category Name": percentage }
+        3. Do not include markdown code blocks, just raw JSON.
+      `;
+
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      if (!response.ok) throw new Error("API Error");
+
+      const result = await response.json();
+      const content = result.candidates[0].content.parts[0].text;
+      
+      const jsonMatch = content.match(/\{[\s\S]*?\}/);
+      if (!jsonMatch) throw new Error("No JSON found");
+      
+      const activityData = JSON.parse(jsonMatch[0]);
+      
+      // Update the chart
+      const aiCtx = document.getElementById('ai-activity-chart').getContext('2d');
+      if (charts['ai-activity']) charts['ai-activity'].destroy();
+      
+      const labels = Object.keys(activityData);
+      const data = Object.values(activityData);
+      const colors = ['#ec4899', '#8b5cf6', '#3b82f6', '#10b981', '#f59e0b', '#06b6d4'];
+
+      charts['ai-activity'] = new Chart(aiCtx, {
+        type: 'doughnut',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: 'rgba(255,255,255,0.1)' }] },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { 
+            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15, font: { size: 10 } } },
+            tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', padding: 10 }
+          },
+          cutout: '75%'
+        }
+      });
+      
+    } catch(err) {
+      console.error(err);
+      alert("Activity analysis failed. Check your API key or try again.");
+    } finally {
+      aiActivityBtn.innerText = originalText;
+      aiActivityBtn.disabled = false;
+    }
+  });
 }
 
 document.addEventListener('DOMContentLoaded', refreshDashboard);
