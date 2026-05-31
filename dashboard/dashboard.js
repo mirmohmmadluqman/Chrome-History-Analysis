@@ -614,18 +614,35 @@ function renderTrackerVisualCanvas(domainsArr) {
   const aiCtx = document.getElementById('ai-activity-chart')?.getContext('2d');
   if (!aiCtx) return;
   if (charts['ai-activity']) charts['ai-activity'].destroy();
-  charts['ai-activity'] = new Chart(aiCtx, {
-    type: 'doughnut',
-    data: { labels: ['Click "Analyze with AI" for insights'], datasets: [{ data: [1], backgroundColor: ['rgba(128,128,128,0.15)'] }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      cutout: '80%',
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { size: 10 } } }
+  
+  if (window.cachedAiActivityLabels && window.cachedAiActivityData) {
+    charts['ai-activity'] = new Chart(aiCtx, {
+      type: 'doughnut',
+      data: { labels: window.cachedAiActivityLabels, datasets: [{ data: window.cachedAiActivityData, backgroundColor: CHART_COLORS, borderWidth: 1, borderColor: 'rgba(128,128,128,0.1)' }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
+          tooltip: { padding: 10 }
+        },
+        cutout: '70%'
       }
-    }
-  });
+    });
+  } else {
+    charts['ai-activity'] = new Chart(aiCtx, {
+      type: 'doughnut',
+      data: { labels: ['Click "Analyze with AI" for insights'], datasets: [{ data: [1], backgroundColor: ['rgba(128,128,128,0.15)'] }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: '80%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 10 } } }
+        }
+      }
+    });
+  }
 }
 
 // ─── AI Settings ──────────────────────────────────────────────────────────────
@@ -683,6 +700,61 @@ async function runAIOptimization(btnId) {
       if (confirm(`${planMsg}Gemini suggests the following category names and target goals:\n\n${summary}\n\nDo you want to apply this personalized role profile?`)) {
         currentUserSettings.goals = result.goals;
         currentUserSettings.categoryNames = result.categoryNames;
+        
+        btn.innerText = "Auto-Categorizing Websites...";
+        try {
+          const topDomainsArr = Object.values(domainsDB).sort((a, b) => b.totalActiveTimeMs - a.totalActiveTimeMs).slice(0, 50);
+          const usageList = topDomainsArr.map(d => d.domain).join(', ');
+          const availableCategories = Object.keys(CATEGORIES).map(id => `${id} (currently displayed as: '${currentUserSettings.categoryNames[id] || CATEGORIES[id]}')`).join(', ');
+
+          const domainPrompt = `
+            User Profile: ${profile}
+            Tracked Websites (comma separated): ${usageList}
+            Available Category IDs: ${availableCategories}
+
+            Task: 
+            Research each of the tracked websites. Relate the website to the user's professional profile/job.
+            Map EACH tracked website to exactly ONE of the exact available Category IDs (DEVELOPMENT, AI, PRODUCTIVITY, ENTERTAINMENT, SOCIAL, RESEARCH, LEARNING, WEB3, OTHER).
+            DO NOT group them into OTHER if they are productive tools for the user's job role (e.g. clay.com for GTM maps to PRODUCTIVITY or DEVELOPMENT).
+
+            Constraints:
+            1. Return ONLY a valid JSON object strictly in this format: 
+               { "domain.com": "CATEGORY_ID" }
+            2. Do not include markdown code blocks, just raw JSON.
+          `;
+
+          const domainResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: domainPrompt }] }] })
+          });
+
+          if (domainResponse.ok) {
+            const domainRes = await domainResponse.json();
+            if (domainRes.candidates && domainRes.candidates[0]) {
+              const contentText = domainRes.candidates[0].content.parts[0].text;
+              const jsonMatch = contentText.match(/\{[\s\S]*?\}/);
+              if (jsonMatch) {
+                const mappingData = JSON.parse(jsonMatch[0]);
+                let customRules = currentUserSettings.customRules || {};
+                
+                for (const [domain, catId] of Object.entries(mappingData)) {
+                  if (CATEGORIES[catId]) {
+                    customRules[domain] = CATEGORIES[catId];
+                    if (domainsDB[domain]) {
+                      domainsDB[domain].category = CATEGORIES[catId];
+                    }
+                  }
+                }
+                currentUserSettings.customRules = customRules;
+                await StorageManager.set('domains', domainsDB);
+              }
+            }
+          }
+        } catch (catErr) {
+          console.warn("Domain categorization sub-task failed, saving goals anyway.", catErr);
+        }
+
         await StorageManager.set('userSettings', currentUserSettings);
         refreshDashboard();
       }
@@ -791,18 +863,23 @@ if (aiActivityBtn) {
       const topDomains = currentTrackerDomainsArr.slice(0, 20);
       const usageList = topDomains.map(d => `${d.domain}: ${Math.floor(d.totalActiveTimeMs / 60000)}m`).join(', ');
 
-      const prompt = `
-        I have tracked the following browsing time for this user:
-        ${usageList}
+      const userProfile = currentUserSettings.userProfile || 'General knowledge worker';
+      const availableCategories = Object.keys(CATEGORIES).map(id => `${id} (currently displayed as: '${currentUserSettings.categoryNames?.[id] || CATEGORIES[id]}')`).join(', ');
 
-        Group these websites into 4-6 broad activity categories based on what they are typically used for (e.g., 'Coding/Development', 'Video Streaming', 'Social Scrolling', 'Research', 'General Reading'). 
-        Calculate the total estimated percentage of time spent in each new broad activity category.
-        
+      const prompt = `
+        User Profile: ${userProfile}
+        Tracked Websites: ${usageList}
+        Available Category IDs: ${availableCategories}
+
+        Task: 
+        Analyze each of the tracked websites and research what they are about. Specifically, relate the website to the user's professional profile/job.
+        If a website is related to their work (e.g., clay.com for a GTM professional), map it to the 'PRODUCTIVITY' or 'DEVELOPMENT' category ID, rather than 'OTHER'.
+        Map EACH tracked website to exactly ONE of the exact available Category IDs (DEVELOPMENT, AI, PRODUCTIVITY, ENTERTAINMENT, SOCIAL, RESEARCH, LEARNING, WEB3, OTHER).
+
         Constraints:
-        1. Percentages MUST sum to exactly 100.
-        2. Return ONLY a valid JSON object strictly in this format: 
-           { "Activity Category Name": percentage }
-        3. Do not include markdown code blocks, just raw JSON.
+        1. Return ONLY a valid JSON object strictly in this format: 
+           { "domain.com": "CATEGORY_ID" }
+        2. Do not include markdown code blocks, just raw JSON.
       `;
 
       const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
@@ -819,28 +896,43 @@ if (aiActivityBtn) {
       const jsonMatch = content.match(/\{[\s\S]*?\}/);
       if (!jsonMatch) throw new Error("No JSON found");
 
-      const activityData = JSON.parse(jsonMatch[0]);
+      const mappingData = JSON.parse(jsonMatch[0]);
 
-      // Update the chart with theme-consistent colors
-      const aiCtx = document.getElementById('ai-activity-chart').getContext('2d');
-      if (charts['ai-activity']) charts['ai-activity'].destroy();
+      // Update custom rules and domains DB
+      let domainsDB = await StorageManager.get('domains') || {};
+      let customRules = currentUserSettings.customRules || {};
+      let updated = false;
 
-      const labels = Object.keys(activityData);
-      const data = Object.values(activityData);
-
-      charts['ai-activity'] = new Chart(aiCtx, {
-        type: 'doughnut',
-        data: { labels: labels, datasets: [{ data: data, backgroundColor: CHART_COLORS, borderWidth: 1, borderColor: 'rgba(128,128,128,0.1)' }] },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: {
-            legend: { position: 'bottom', labels: { boxWidth: 10, padding: 12, font: { size: 10 } } },
-            tooltip: { padding: 10 }
-          },
-          cutout: '70%'
+      for (const [domain, catId] of Object.entries(mappingData)) {
+        if (CATEGORIES[catId]) {
+          customRules[domain] = CATEGORIES[catId];
+          if (domainsDB[domain]) {
+            domainsDB[domain].category = CATEGORIES[catId];
+          }
+          updated = true;
         }
+      }
+
+      // Update the chart to show time distribution among the displayed categories for these top domains
+      let activityData = {};
+      topDomains.forEach(d => {
+        const catName = currentUserSettings.customRules?.[d.domain] || d.category;
+        const displayName = Object.keys(CATEGORIES).find(key => CATEGORIES[key] === catName) || 'OTHER';
+        const finalLabel = currentUserSettings.categoryNames?.[displayName] || catName;
+        activityData[finalLabel] = (activityData[finalLabel] || 0) + d.totalActiveTimeMs;
       });
+
+      window.cachedAiActivityLabels = Object.keys(activityData);
+      window.cachedAiActivityData = Object.values(activityData).map(ms => ms / 60000); // minutes
+
+      if (updated) {
+        currentUserSettings.customRules = customRules;
+        await StorageManager.set('userSettings', currentUserSettings);
+        await StorageManager.set('domains', domainsDB);
+        refreshDashboard();
+      } else {
+        renderTrackerVisualCanvas(currentTrackerDomainsArr);
+      }
 
     } catch (err) {
       console.error(err);
