@@ -569,8 +569,7 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
       const tr = document.createElement('tr');
       const catId = Object.keys(CATEGORIES).find(key => CATEGORIES[key] === d.category) || 'OTHER';
       const displayCat = currentUserSettings.categoryNames[catId] || catId;
-      const minutes = Math.floor(d.totalActiveTimeMs / 60000);
-
+      
       let compareHtml = '';
       if (isCompare && isFilterView) {
         const allTime = allTimeDB?.[d.domain]?.totalActiveTimeMs || 0;
@@ -585,28 +584,13 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
         <td class="domain-cell">${d.domain}</td>
         <td class="category-cell"><span class="category-badge">${displayCat}</span></td>
         <td class="time-cell">
-          <input type="number" class="time-edit-input" data-domain="${d.domain}" value="${minutes}" style="width: 70px; padding: 4px; border-radius: 4px; background: var(--glass-bg); color: var(--text-main); border: 1px solid var(--glass-border); text-align: right;" ${isFilterView ? 'disabled' : ''}> min
+          ${msToHoursFormat(d.totalActiveTimeMs)}
           ${compareHtml}
         </td>
         <td class="count-cell">${d.visitCount}</td>
       `;
       tbody.appendChild(tr);
     });
-
-    if (!isFilterView) {
-      document.querySelectorAll('.time-edit-input').forEach(input => {
-        input.addEventListener('change', async (e) => {
-          const domain = e.target.dataset.domain;
-          const newMins = parseInt(e.target.value, 10) || 0;
-          const realDb = await StorageManager.get('domains') || {};
-          if (realDb[domain]) {
-            realDb[domain].totalActiveTimeMs = newMins * 60000;
-            await StorageManager.set('domains', realDb);
-            refreshDashboard();
-          }
-        });
-      });
-    }
   });
   
   currentTrackerDomainsArr = domainsArr;
@@ -614,34 +598,68 @@ function renderTrackerTable(domainsDB, isFilterView = false) {
 }
 
 function renderTrackerVisualCanvas(domainsArr) {
+  // Guard: Chart.js must be available
+  if (!window.Chart) {
+    loadChartJS().then(() => renderTrackerVisualCanvas(domainsArr));
+    return;
+  }
+
   const canvas = document.getElementById('tracker-pie-chart');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   if (charts['tracker-pie']) charts['tracker-pie'].destroy();
-  
+
   const topCount = 8;
-  const labels = domainsArr.slice(0, topCount).map(d => d.domain);
-  const data = domainsArr.slice(0, topCount).map(d => d.totalActiveTimeMs / 60000);
   const colors = ['#6366f1', '#ec4899', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#8b5cf6', '#f97316'];
 
-  charts['tracker-pie'] = new Chart(ctx, {
-    type: 'pie',
-    data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: 'rgba(255,255,255,0.05)' }] },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 9 } } }
-      }
-    }
-  });
+  if (!domainsArr || domainsArr.length === 0) {
+    // Render a placeholder if no data
+    charts['tracker-pie'] = new Chart(ctx, {
+      type: 'pie',
+      data: { labels: ['No data yet'], datasets: [{ data: [1], backgroundColor: ['rgba(99,102,241,0.2)'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  } else {
+    const slices = domainsArr.slice(0, topCount);
+    const labels = slices.map(d => d.domain);
+    // Ensure no zero values — Chart.js won't draw zero-value slices
+    const data = slices.map(d => Math.max(d.totalActiveTimeMs / 60000, 0.1));
 
-  const aiCtx = document.getElementById('ai-activity-chart').getContext('2d');
+    charts['tracker-pie'] = new Chart(ctx, {
+      type: 'pie',
+      data: { labels, datasets: [{ data, backgroundColor: colors.slice(0, slices.length), borderWidth: 2, borderColor: 'rgba(255,255,255,0.08)' }] },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { boxWidth: 10, padding: 10, font: { size: 10, family: 'Inter' }, color: '#94a3b8' } },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${ctx.label}: ${Math.round(ctx.parsed)}m`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Render AI chart placeholder
+  const aiCanvas = document.getElementById('ai-activity-chart');
+  if (!aiCanvas) return;
+  const aiCtx = aiCanvas.getContext('2d');
   if (charts['ai-activity']) charts['ai-activity'].destroy();
   charts['ai-activity'] = new Chart(aiCtx, {
     type: 'doughnut',
-    data: { labels: ['Analyze for Activity Insights'], datasets: [{ data: [1], backgroundColor: ['var(--glass-bg)'] }] },
-    options: { responsive: true, maintainAspectRatio: false, cutout: '80%', plugins: { legend: { position: 'bottom' } } }
+    data: {
+      labels: ['Click "Analyze with AI"'],
+      datasets: [{ data: [1], backgroundColor: ['rgba(99,102,241,0.15)'], borderWidth: 1, borderColor: ['rgba(99,102,241,0.4)'] }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '75%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } }, tooltip: { enabled: false } }
+    }
   });
 }
 
