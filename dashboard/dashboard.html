@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>ChronosAnalytics - Intelligence Dashboard</title>
   <link rel="stylesheet" href="dashboard.css">
+  <script src="../lib/chart.umd.js"></script>
 </head>
 <body>
   <div class="app-layout">
@@ -11,7 +12,7 @@
     <aside class="sidebar">
       <div class="sidebar-header">
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-        <span>ChronosAnalytics</span>
+        <span>Chronos</span>
       </div>
       <nav class="sidebar-nav">
         <button class="nav-item active" data-tab="overview">
@@ -72,11 +73,11 @@
           <div class="charts-grid-2">
             <div class="chart-container">
               <h3>Time by Category</h3>
-              <canvas id="category-chart"></canvas>
+              <div class="canvas-wrapper"><canvas id="category-chart"></canvas></div>
             </div>
             <div class="chart-container">
               <h3>Top Active Domains</h3>
-              <canvas id="top-domains-chart"></canvas>
+              <div class="canvas-wrapper"><canvas id="top-domains-chart"></canvas></div>
             </div>
           </div>
         </section>
@@ -87,7 +88,7 @@
             <div class="chart-container">
               <h3>Hourly Activity Distribution (24h)</h3>
               <div class="placeholder-text">Line chart mapping peak interaction periods</div>
-              <canvas id="hourly-chart" height="100"></canvas>
+              <div class="canvas-wrapper"><canvas id="hourly-chart" height="100"></canvas></div>
             </div>
            </div>
         </section>
@@ -97,11 +98,11 @@
           <div class="charts-grid-2">
             <div class="chart-container">
               <h3>Actual Allocation Base</h3>
-              <canvas id="actual-allocation-chart"></canvas>
+              <div class="canvas-wrapper"><canvas id="actual-allocation-chart"></canvas></div>
             </div>
             <div class="chart-container">
               <h3>Target Optimization Goals</h3>
-              <canvas id="target-allocation-chart"></canvas>
+              <div class="canvas-wrapper"><canvas id="target-allocation-chart"></canvas></div>
             </div>
           </div>
         </section>
